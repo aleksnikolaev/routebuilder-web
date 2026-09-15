@@ -68,6 +68,14 @@ test("a repeated submission answers 200 without a second notice", async () => {
 	assert.equal(calls.notify.length, 0);
 });
 
+test("a known id with different content answers 409 and sends no notice", async () => {
+	const { calls, deps } = leadDeps({ submit: async () => "conflict" });
+	const res = await handleLead(post("/api/lead", { ...valid, submission_id: "0f8fad5b-d9cb-469f-a165-70867728950e" }), deps);
+	assert.equal(res.status, 409);
+	assert.deepEqual(await res.json(), { error: "submission_changed" });
+	assert.equal(calls.notify.length, 0);
+});
+
 test("a request without a submission id does not pass one to storage", async () => {
 	const { calls, deps } = leadDeps();
 	await handleLead(post("/api/lead", valid), deps);

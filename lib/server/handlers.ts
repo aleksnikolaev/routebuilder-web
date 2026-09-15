@@ -7,8 +7,8 @@
 
 import type { Lead, NotifyResult } from "./notify";
 
-export type SubmitResult = "ok" | "rate_limited" | "duplicate";
-export type TrackResult = "ok" | "rate_limited" | "duplicate";
+export type SubmitResult = "ok" | "rate_limited" | "duplicate" | "conflict";
+export type TrackResult = "ok" | "rate_limited" | "duplicate" | "conflict";
 
 type Log = (message: string, detail?: unknown) => void;
 
@@ -111,8 +111,13 @@ export async function handleLead(request: Request, deps: LeadDeps): Promise<Resp
 		return Response.json({ error: "rate_limited" }, { status: 429 });
 	}
 	if (result === "duplicate") {
-		// Already stored and already notified on the first attempt.
+		// The same content is already stored and was notified on the first attempt.
 		return Response.json({ status: "ok" });
+	}
+	if (result === "conflict") {
+		// The id was used for different content. Nothing was stored; the form sends
+		// the request again under a new id. Answering success here would lose it.
+		return Response.json({ error: "submission_changed" }, { status: 409 });
 	}
 
 	// Stored. Nothing after this line may turn into an error for the visitor, who

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
+import { submitLead, type Pending } from "@/lib/client/submission";
 import styles from "./lead-form.module.css";
 
 type State = "idle" | "sending" | "sent" | "rate_limited" | "invalid" | "failed";
@@ -14,36 +15,31 @@ const STATUS: Record<Exclude<State, "idle" | "sending">, string> = {
 
 export default function LeadForm() {
 	const [state, setState] = useState<State>("idle");
-	// One id per submission, kept across retries, so a retry after a lost answer
-	// is recognised by the server and not stored twice.
-	const submissionId = useRef<string | null>(null);
+	// The last attempt that did not get a success answer. Its id is reused only
+	// for the same content; see lib/client/submission.ts.
+	const pending = useRef<Pending>(null);
 
 	async function onSubmit(e: FormEvent<HTMLFormElement>) {
 		e.preventDefault();
 		const form = e.currentTarget;
-		submissionId.current ??= crypto.randomUUID();
-		const data = { ...Object.fromEntries(new FormData(form).entries()), submission_id: submissionId.current };
+		const fields = Object.fromEntries(
+			Array.from(new FormData(form).entries(), ([key, value]) => [key, typeof value === "string" ? value : ""]),
+		);
 		setState("sending");
-		try {
-			const res = await fetch("/api/lead", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(data),
-			});
-			if (res.ok) {
-				form.reset();
-				submissionId.current = null;
-				setState("sent");
-			} else if (res.status === 429) {
-				setState("rate_limited");
-			} else if (res.status === 400) {
-				setState("invalid");
-			} else {
-				setState("failed");
-			}
-		} catch {
-			setState("failed");
+		const result = await submitLead(fields, pending.current, {
+			send: (body) =>
+				fetch("/api/lead", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify(body),
+				}),
+			newId: () => crypto.randomUUID(),
+		});
+		pending.current = result.pending;
+		if (result.outcome === "sent") {
+			form.reset();
 		}
+		setState(result.outcome);
 	}
 
 	return (
