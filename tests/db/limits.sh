@@ -49,6 +49,15 @@ expect "first submission" "$(q "SELECT landing_submit('test-secret', 'Dup', 'dup
 expect "repeated submission" "$(q "SELECT landing_submit('test-secret', 'Dup', 'dup@example.com', '', '', '$DUP', 'test', '$ID')")" duplicate
 expect "repeated submission stored once" "$(q "SELECT count(*) FROM landing_requests WHERE submission_id = '$ID'")" 1
 
+# A known id with changed content must not be taken for a repeat: the stored
+# version would stay and the correction would be lost.
+expect "same id, changed email" "$(q "SELECT landing_submit('test-secret', 'Dup', 'fixed@example.com', '', '', '$DUP', 'test', '$ID')")" conflict
+expect "same id, changed message" "$(q "SELECT landing_submit('test-secret', 'Dup', 'dup@example.com', '', 'new text', '$DUP', 'test', '$ID')")" conflict
+expect "conflict leaves the stored request as it was" "$(q "SELECT email || '|' || coalesce(message, '-') FROM landing_requests WHERE submission_id = '$ID'")" "dup@example.com|-"
+expect "same id, same content with other spacing and email case" "$(q "SELECT landing_submit('test-secret', ' Dup ', ' DUP@example.com ', '', '', '$DUP', 'test', '$ID')")" duplicate
+ID3=33333333-4444-4555-8666-777777777777
+expect "corrected request under a new id is stored" "$(q "SELECT landing_submit('test-secret', 'Dup', 'fixed@example.com', '', '', '$DUP', 'test', '$ID3')")" ok
+
 # The same id from two addresses at once: different locks, still one row, no error.
 ID2=22222222-3333-4444-8555-666666666666
 out=$(mktemp -d)
@@ -59,6 +68,22 @@ done
 wait
 expect "same id from two addresses stored once" "$(q "SELECT count(*) FROM landing_requests WHERE submission_id = '$ID2'")" 1
 expect "same id from two addresses: one ok, the rest duplicate" "$(sort "$out"/c* | uniq -c | awk '{print $2"="$1}' | sort | tr '\n' ' ')" "duplicate=7 ok=1 "
+rm -rf "$out"
+
+# The same id with two different contents from two addresses at once: one row;
+# calls with the winner's content answer duplicate, the others conflict.
+ID4=44444444-5555-4666-8777-888888888888
+out=$(mktemp -d)
+for i in $(seq 8); do
+	if [ $((i % 2)) -eq 0 ]; then h=$CROSS2; mail=even@example.com; else h=$CROSS1; mail=odd@example.com; fi
+	q "SELECT landing_submit('test-secret', 'Race2', '$mail', '', '', '$h', 'test', '$ID4')" > "$out/$mail.$i" 2>&1 &
+done
+wait
+winner=$(q "SELECT email FROM landing_requests WHERE submission_id = '$ID4'")
+other=odd@example.com; [ "$winner" = odd@example.com ] && other=even@example.com
+expect "different content, same id, two addresses: stored once" "$(q "SELECT count(*) FROM landing_requests WHERE submission_id = '$ID4'")" 1
+expect "different content, same id: the winner's content" "$(cat "$out/$winner".* | sort | uniq -c | awk '{print $2"="$1}' | tr '\n' ' ')" "duplicate=3 ok=1 "
+expect "different content, same id: the other content" "$(cat "$out/$other".* | sort | uniq -c | awk '{print $2"="$1}' | tr '\n' ' ')" "conflict=4 "
 rm -rf "$out"
 
 # The build already in production calls without a submission id.
