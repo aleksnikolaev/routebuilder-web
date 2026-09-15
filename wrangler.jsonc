@@ -1,0 +1,22 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "routebuilder",
+	"main": ".open-next/worker.js",
+	"compatibility_date": "2026-09-01",
+	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	},
+	"services": [
+		{
+			"binding": "WORKER_SELF_REFERENCE",
+			"service": "routebuilder"
+		}
+	],
+	// Public value. SUPABASE_PUBLISHABLE_KEY, LANDING_RPC_SECRET and
+	// LANDING_IP_SALT are Worker secrets, set with `wrangler secret put`.
+	"vars": {
+		"SUPABASE_URL": "https://yljybhpxmfaremvmdkgm.supabase.co"
+	}
+}

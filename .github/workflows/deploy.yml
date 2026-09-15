@@ -1,0 +1,105 @@
+name: Check and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# One deploy at a time; a newer push waits instead of racing the older one.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CI: "true"
+  WRANGLER_SEND_METRICS: "false"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build for Cloudflare Workers
+        run: npx opennextjs-cloudflare build
+
+      - name: Secrets stay on the server
+        run: npm run check:bundle
+        env:
+          LANDING_RPC_SECRET: ${{ secrets.LANDING_RPC_SECRET }}
+          LANDING_IP_SALT: ${{ secrets.LANDING_IP_SALT }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+
+      - name: Render and routes smoke test
+        run: |
+          npx opennextjs-cloudflare preview > preview.log 2>&1 &
+          npm run check:smoke || { cat preview.log; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: open-next
+          path: .open-next
+          include-hidden-files: true
+          retention-days: 7
+
+  db:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Migrations, limits and repeats under concurrency
+        run: tests/db/limits.sh
+        env:
+          PGURL: postgres://postgres:postgres@localhost:5432/postgres
+
+  deploy:
+    needs: [check, db]
+    # Only a push to main deploys, and only the build that passed the checks.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: open-next
+          path: .open-next
+
+      - name: Deploy the checked build
+        run: npx opennextjs-cloudflare deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
