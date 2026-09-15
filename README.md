@@ -1,36 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RouteBuilder landing
 
-## Getting Started
+The public RouteBuilder page, served by Next.js on Cloudflare Workers. Requests from the contact form and contact clicks are stored in Supabase.
 
-First, run the development server:
+## How it fits together
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- `lib/landing/` holds the published page head, JSON-LD and markup, carried over from the static site without changes.
+- `app/api/lead` and `app/api/event` are same-origin routes. They validate input, hash the visitor address with a salt, and call two database functions. The browser never talks to Supabase.
+- `supabase/migrations/` creates the tables and functions. Tables are closed to the publishable key; the functions require a shared secret.
+
+## Environment
+
+See `.env.example`. `SUPABASE_URL` is a plain variable in `wrangler.jsonc`; the rest are Worker secrets:
+
+```
+npx wrangler secret put SUPABASE_PUBLISHABLE_KEY
+npx wrangler secret put LANDING_RPC_SECRET
+npx wrangler secret put LANDING_IP_SALT
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Routes fail closed with 503 when any of them is missing.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The email notice about a new request needs two more secrets, `RESEND_API_KEY` and `LEAD_NOTIFY_TO`. Without them the request is still stored and the route logs that no notice went out. Until a sending domain is verified in Resend, notices go from `onboarding@resend.dev` and only to the Resend account owner.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Checks and deploy
 
-## Learn More
+`.github/workflows/deploy.yml` runs lint, type check, the Cloudflare build, a scan of browser-facing files for secrets, and a smoke test against a local preview. Only a push to `main` that passes all of them deploys, and it deploys the build that was checked.
 
-To learn more about Next.js, take a look at the following resources:
+Locally:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+npm run preview        # build and serve in the Workers runtime on :8787
+npm run check:bundle   # after a build
+npm run check:smoke    # against a running preview
+```

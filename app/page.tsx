@@ -1,69 +1,25 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+import Script from "next/script";
+import { bodyAfterForm, bodyBeforeForm } from "@/lib/landing/body";
+import { landingJsonLd } from "@/lib/landing/jsonld";
+import { landingMeta } from "@/lib/landing/meta";
+import LeadForm from "./lead-form";
 
 export default function Home() {
-  return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>
-            To get started, edit the{" "}
-            <code className={styles.code}>page.tsx</code> file.
-          </h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+	return (
+		<>
+			{landingJsonLd.map((json, i) => (
+				<script key={i} type="application/ld+json" dangerouslySetInnerHTML={{ __html: json }} />
+			))}
+			{/* The published markup is carried over as is; display: contents keeps the wrappers out of the layout. */}
+			<div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: bodyBeforeForm }} />
+			<LeadForm />
+			<div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: bodyAfterForm }} />
+			<Script src="/landing.js" strategy="afterInteractive" />
+			<Script
+				src="https://static.cloudflareinsights.com/beacon.min.js"
+				data-cf-beacon={landingMeta.cfBeacon}
+				strategy="afterInteractive"
+			/>
+		</>
+	);
 }
