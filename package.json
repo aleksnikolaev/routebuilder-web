@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
+    "test": "node --experimental-strip-types --no-warnings --test \"tests/*.test.mjs\"",
+    "test:db": "tests/db/limits.sh",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "check:bundle": "node scripts/check-client-bundle.mjs",

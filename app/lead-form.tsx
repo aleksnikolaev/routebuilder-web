@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import styles from "./lead-form.module.css";
 
 type State = "idle" | "sending" | "sent" | "rate_limited" | "invalid" | "failed";
@@ -14,11 +14,15 @@ const STATUS: Record<Exclude<State, "idle" | "sending">, string> = {
 
 export default function LeadForm() {
 	const [state, setState] = useState<State>("idle");
+	// One id per submission, kept across retries, so a retry after a lost answer
+	// is recognised by the server and not stored twice.
+	const submissionId = useRef<string | null>(null);
 
 	async function onSubmit(e: FormEvent<HTMLFormElement>) {
 		e.preventDefault();
 		const form = e.currentTarget;
-		const data = Object.fromEntries(new FormData(form).entries());
+		submissionId.current ??= crypto.randomUUID();
+		const data = { ...Object.fromEntries(new FormData(form).entries()), submission_id: submissionId.current };
 		setState("sending");
 		try {
 			const res = await fetch("/api/lead", {
@@ -28,6 +32,7 @@ export default function LeadForm() {
 			});
 			if (res.ok) {
 				form.reset();
+				submissionId.current = null;
 				setState("sent");
 			} else if (res.status === 429) {
 				setState("rate_limited");

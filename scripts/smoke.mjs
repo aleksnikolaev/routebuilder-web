@@ -46,11 +46,14 @@ const post = (path, body, headers = {}) =>
 
 check((await post("/api/lead", "{not json")).status === 400, "lead: broken JSON rejected");
 check((await post("/api/lead", JSON.stringify({ name: "", email: "x" }))).status === 400, "lead: invalid fields rejected");
+check((await post("/api/lead", "null")).status === 400, "lead: JSON null rejected");
+check((await post("/api/lead", JSON.stringify({ name: "a", email: "a@b.co", submission_id: "not-a-uuid" }))).status === 400, "lead: malformed submission id rejected");
 check(
 	(await post("/api/lead", JSON.stringify({ name: "a", email: "a@b.co" }), { Origin: "https://example.com" })).status === 403,
 	"lead: foreign origin rejected",
 );
 check((await post("/api/event", JSON.stringify({ event: "hack" }))).status === 400, "event: unknown event rejected");
+check((await post("/api/event", "null")).status === 400, "event: JSON null rejected");
 
 if (failures.length > 0) {
 	console.error(`\n${failures.length} smoke check(s) failed`);

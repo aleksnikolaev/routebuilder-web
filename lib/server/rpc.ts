@@ -1,6 +1,7 @@
 import { serverEnv } from "./env";
 
-export type RpcResult = "ok" | "rate_limited";
+// "duplicate" comes back from landing_submit for a repeated submission id.
+export type RpcResult = "ok" | "rate_limited" | "duplicate";
 
 type RpcName = "landing_submit" | "landing_track";
 
@@ -34,7 +35,7 @@ export async function callRpc(fn: RpcName, args: Record<string, string>): Promis
 		throw new Error(`${fn} failed: HTTP ${res.status} ${detail}`);
 	}
 	const value: unknown = await res.json();
-	if (value !== "ok" && value !== "rate_limited") {
+	if (value !== "ok" && value !== "rate_limited" && value !== "duplicate") {
 		throw new Error(`${fn} returned an unexpected value: ${JSON.stringify(value)}`);
 	}
 	return value;

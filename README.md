@@ -26,6 +26,13 @@ The email notice about a new request needs two more secrets, `RESEND_API_KEY` an
 
 `.github/workflows/deploy.yml` runs lint, type check, the Cloudflare build, a scan of browser-facing files for secrets, and a smoke test against a local preview. Only a push to `main` that passes all of them deploys, and it deploys the build that was checked.
 
+Tests:
+
+```
+npm test                                   # route and notice logic, no network
+PGURL=postgres://... npm run test:db       # migrations and limits under concurrency, throwaway database only
+```
+
 Locally:
 
 ```
